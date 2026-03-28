@@ -1,0 +1,209 @@
+[
+    {
+        "id": "feeder_tab",
+        "type": "tab",
+        "label": "Feeder → MySQL",
+        "disabled": false,
+        "info": "Pont MQTT vers MySQL pour le distributeur automatique"
+    },
+    {
+        "id": "mqtt_broker",
+        "type": "mqtt-broker",
+        "name": "Mosquitto Local",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "nodered-feeder",
+        "autoConnect": true,
+        "usetls": false,
+        "keepalive": "60",
+        "cleansession": true
+    },
+    {
+        "id": "mysql_config",
+        "type": "MySQLdatabase",
+        "name": "feeder_db",
+        "host": "localhost",
+        "port": "3306",
+        "db": "feeder_db",
+        "tz": "Europe/Paris",
+        "charset": "UTF8"
+    },
+
+    {
+        "id": "n_comment_header",
+        "type": "comment",
+        "z": "feeder_tab",
+        "name": "══ DISTRIBUTEUR → MySQL ══",
+        "info": "Reçoit les messages MQTT de l'ESP32 et les insère dans MySQL",
+        "x": 200,
+        "y": 40
+    },
+
+    {
+        "id": "n_mqtt_distributed",
+        "type": "mqtt in",
+        "z": "feeder_tab",
+        "name": "feeder/distributed",
+        "topic": "feeder/distributed",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "mqtt_broker",
+        "x": 150,
+        "y": 120,
+        "wires": [["n_func_distributed"]]
+    },
+    {
+        "id": "n_func_distributed",
+        "type": "function",
+        "z": "feeder_tab",
+        "name": "→ INSERT feed_events",
+        "func": "const d = msg.payload;\nconst ts = d.ts || new Date().toISOString().slice(0,19).replace('T',' ');\nmsg.topic = `INSERT INTO feed_events (animal, requested_g, distributed_g, bowl_weight_g, feed_count, ts) VALUES ('${d.animal}', ${d.requested}, ${d.distributed}, ${d.bowl || 0}, ${d.feeds || 0}, '${ts}')`;\nreturn msg;",
+        "outputs": 1,
+        "x": 380,
+        "y": 120,
+        "wires": [["n_mysql_exec", "n_debug_distributed"]]
+    },
+
+    {
+        "id": "n_mqtt_rfid",
+        "type": "mqtt in",
+        "z": "feeder_tab",
+        "name": "feeder/rfid_scan",
+        "topic": "feeder/rfid_scan",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "mqtt_broker",
+        "x": 150,
+        "y": 200,
+        "wires": [["n_func_rfid"]]
+    },
+    {
+        "id": "n_func_rfid",
+        "type": "function",
+        "z": "feeder_tab",
+        "name": "→ INSERT rfid_scans",
+        "func": "const d = msg.payload;\nconst ts = d.ts || new Date().toISOString().slice(0,19).replace('T',' ');\nmsg.topic = `INSERT INTO rfid_scans (animal, uid, ts) VALUES ('${d.animal}', '${d.uid}', '${ts}')`;\nreturn msg;",
+        "outputs": 1,
+        "x": 380,
+        "y": 200,
+        "wires": [["n_mysql_exec", "n_debug_rfid"]]
+    },
+
+    {
+        "id": "n_mqtt_bowl",
+        "type": "mqtt in",
+        "z": "feeder_tab",
+        "name": "feeder/bowl_weight",
+        "topic": "feeder/bowl_weight",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "mqtt_broker",
+        "x": 150,
+        "y": 280,
+        "wires": [["n_func_bowl"]]
+    },
+    {
+        "id": "n_func_bowl",
+        "type": "function",
+        "z": "feeder_tab",
+        "name": "→ INSERT bowl_weight",
+        "func": "const d = msg.payload;\nconst ts = d.ts || new Date().toISOString().slice(0,19).replace('T',' ');\nconst stock = d.stock || 0;\nmsg.topic = `INSERT INTO bowl_weight (weight_g, stock_percent, ts) VALUES (${d.weight}, ${stock}, '${ts}')`;\nreturn msg;",
+        "outputs": 1,
+        "x": 380,
+        "y": 280,
+        "wires": [["n_mysql_exec", "n_debug_bowl"]]
+    },
+
+    {
+        "id": "n_mqtt_errors",
+        "type": "mqtt in",
+        "z": "feeder_tab",
+        "name": "feeder/errors",
+        "topic": "feeder/errors",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "mqtt_broker",
+        "x": 150,
+        "y": 360,
+        "wires": [["n_func_errors"]]
+    },
+    {
+        "id": "n_func_errors",
+        "type": "function",
+        "z": "feeder_tab",
+        "name": "→ INSERT errors",
+        "func": "const d = msg.payload;\nconst ts = d.ts || new Date().toISOString().slice(0,19).replace('T',' ');\nmsg.topic = `INSERT INTO errors (error_type, animal, ts) VALUES ('${d.type}', '${d.animal || ''}', '${ts}')`;\nreturn msg;",
+        "outputs": 1,
+        "x": 380,
+        "y": 360,
+        "wires": [["n_mysql_exec", "n_debug_errors"]]
+    },
+
+    {
+        "id": "n_mysql_exec",
+        "type": "mysql",
+        "z": "feeder_tab",
+        "name": "MySQL feeder_db",
+        "mydb": "mysql_config",
+        "x": 620,
+        "y": 220,
+        "wires": [[]]
+    },
+
+    {
+        "id": "n_debug_distributed",
+        "type": "debug",
+        "z": "feeder_tab",
+        "name": "debug distributed",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "topic",
+        "x": 630,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "n_debug_rfid",
+        "type": "debug",
+        "z": "feeder_tab",
+        "name": "debug rfid",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "topic",
+        "x": 620,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "n_debug_bowl",
+        "type": "debug",
+        "z": "feeder_tab",
+        "name": "debug bowl",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "topic",
+        "x": 620,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "n_debug_errors",
+        "type": "debug",
+        "z": "feeder_tab",
+        "name": "debug errors",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "topic",
+        "x": 620,
+        "y": 380,
+        "wires": []
+    }
+]
